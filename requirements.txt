@@ -10,3 +10,4 @@ plotly
 streamlit
 pyvis
 accelerate
+pytest
