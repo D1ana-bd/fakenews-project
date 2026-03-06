@@ -212,7 +212,7 @@ data/processed/fakenewsnet/*.csv
 *.csv
 
 # Modelos
-src/FKNWS/models/bert_fake_news/
+src/FKNWS/models/
 *.bin
 *.pt
 *.pth
