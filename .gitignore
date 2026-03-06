@@ -211,8 +211,8 @@ data/raw/fakenewsnet/*.csv
 data/processed/fakenewsnet/*.csv
 *.csv
 # Dados
-data/raw/LIAR/*.csv
-data/processed/LIAR/*.csv
+data/raw/LIAR/*.tsv
+data/processed/LIAR/*.tsv
 *.csv
 # Dados
 data/raw/CoAID/*.csv
