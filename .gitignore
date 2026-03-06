@@ -210,7 +210,14 @@ __marimo__/
 data/raw/fakenewsnet/*.csv
 data/processed/fakenewsnet/*.csv
 *.csv
-
+# Dados
+data/raw/LIAR/*.csv
+data/processed/LIAR/*.csv
+*.csv
+# Dados
+data/raw/CoAID/*.csv
+data/processed/CoAID/*.csv
+*.csv
 # Modelos
 src/FKNWS/models/
 *.bin

@@ -26,8 +26,9 @@ logger = get_logger(__name__)
 
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
-RAW_DIR       = Path("data/raw/fakenewsnet")
-PROCESSED_DIR = Path("data/processed/fakenewsnet")
+PROJECT_ROOT  = Path(__file__).resolve().parents[3]
+RAW_DIR       = PROJECT_ROOT / "data" / "raw" / "fakenewsnet"
+PROCESSED_DIR = PROJECT_ROOT / "data" / "processed" / "fakenewsnet"
 PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 
 
