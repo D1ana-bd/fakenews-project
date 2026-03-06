@@ -2,3 +2,11 @@ pandas
 numpy
 matplotlib
 seaborn
+torch
+transformers
+scikit-learn
+networkx
+plotly
+streamlit
+pyvis
+accelerate
