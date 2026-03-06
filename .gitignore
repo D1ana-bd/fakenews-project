@@ -205,3 +205,14 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Dados
+data/raw/fakenewsnet/*.csv
+data/processed/fakenewsnet/*.csv
+*.csv
+
+# Modelos
+src/FKNWS/models/bert_fake_news/
+*.bin
+*.pt
+*.pth
