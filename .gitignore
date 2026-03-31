@@ -219,7 +219,8 @@ data/raw/CoAID/*.csv
 data/processed/CoAID/*.csv
 *.csv
 # Modelos
-src/FKNWS/models/
+# Modelos — ignorar pesos mas não o código
 *.bin
 *.pt
 *.pth
+models/bert_fake_news/
