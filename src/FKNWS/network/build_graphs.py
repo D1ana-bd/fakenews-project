@@ -55,7 +55,7 @@ RESULTS_FIGURES.mkdir(parents=True, exist_ok=True)
 # Parâmetros do modelo Barabási-Albert
 BA_M = 2          # cada novo nó liga-se a m nós existentes
 RANDOM_SEED = 42  # reprodutibilidade
-MAX_ARTICLES = 100  # processar amostra (None = todos)
+MAX_ARTICLES = None  # processar amostra (None = todos)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
