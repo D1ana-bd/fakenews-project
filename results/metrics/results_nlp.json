@@ -1,0 +1,27 @@
+{
+  "model": "bert_finetuned_cascade",
+  "strategy": "pretrain_liar_finetune_fakenewsnet",
+  "test": {
+    "accuracy": 0.4884,
+    "precision": 0.48,
+    "recall": 0.5714,
+    "f1": 0.5217
+  },
+  "training_history": {
+    "phase1_liar": {
+      "epochs": 3,
+      "final_train_loss": 0.4118380943808006,
+      "best_val_loss": 0.6529495305156116
+    },
+    "phase2_fakenewsnet": {
+      "epochs": 3,
+      "final_train_loss": 0.6317681705667859,
+      "best_val_loss": 0.6656187176704407
+    }
+  },
+  "comparison_vs_baseline": {
+    "baseline_f1": 0.4,
+    "bert_f1": 0.5217,
+    "improvement": 30.43
+  }
+}
