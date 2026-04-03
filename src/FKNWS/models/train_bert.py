@@ -59,7 +59,16 @@ CONFIG = {
 }
 
 # ── Device ─────────────────────────────────────────────────────────────────
-def get_device():
+def get_device() -> torch.device:
+    """
+    Deteta e retorna o melhor dispositivo disponível.
+
+    Prioridade: CUDA (GPU NVIDIA) > MPS (Apple Silicon) > CPU
+
+    Returns:
+        torch.device: dispositivo selecionado
+    """
+
     if torch.backends.mps.is_available():
         device = torch.device("mps")
     elif torch.cuda.is_available():
@@ -69,7 +78,13 @@ def get_device():
     logger.info(f"Device: {device}")
     return device
 
-def set_seed(seed: int):
+def set_seed(seed: int)-> None:
+    """
+    Define a seed para reprodutibilidade em todos os geradores aleatórios.
+
+    Args:
+        seed: valor da seed (recomendado: 42)
+    """
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -190,7 +205,7 @@ class EarlyStopping:
             self.counter   = 0
             model.save_pretrained(self.model_path)
             tokenizer.save_pretrained(self.model_path)
-            logger.info(f"✅ Modelo guardado (val_loss={val_loss:.4f})")
+            logger.info(f" Modelo guardado (val_loss={val_loss:.4f})")
             return False
         else:
             self.counter += 1
@@ -201,7 +216,26 @@ class EarlyStopping:
             return False
 
 # ── Loop de treino  ────────────────────────────────────
-def train_epoch(model, loader, optimizer, scheduler, device, epoch: int, total_epochs: int):
+def train_epoch(model, loader, optimizer, scheduler, device, epoch: int, total_epochs: int)-> float:
+    """
+    Executa uma epoch de treino completa.
+
+    Inclui forward pass, cálculo de loss, backpropagation e atualização
+    dos pesos. Aplica gradient clipping (max_norm=1.0) para estabilidade.
+
+    Args:
+        model: modelo BERT para classificação
+        loader: DataLoader com os dados de treino
+        optimizer: otimizador AdamW
+        scheduler: scheduler de learning rate com warmup linear
+        device: dispositivo de computação (cuda/mps/cpu)
+        epoch: época atual (para o tqdm)
+        total_epochs: total de épocas (para o tqdm)
+
+    Returns:
+        float: loss média da epoch
+    """
+
     model.train()
     total_loss = 0
     from tqdm import tqdm
@@ -229,7 +263,22 @@ def train_epoch(model, loader, optimizer, scheduler, device, epoch: int, total_e
     return total_loss / len(loader)
 
 
-def eval_epoch(model, loader, device):
+def eval_epoch(model, loader, device) -> tuple:
+    """
+    Executa uma epoch de avaliação (sem backpropagation).
+
+    Args:
+        model: modelo BERT para classificação
+        loader: DataLoader com os dados de validação ou teste
+        device: dispositivo de computação
+
+    Returns:
+        tuple: (avg_loss, predictions, true_labels)
+            - avg_loss (float): loss média da epoch
+            - predictions (list): predições do modelo (0 ou 1)
+            - true_labels (list): labels verdadeiros
+    """
+
     model.eval()
     total_loss = 0
     all_preds, all_labels = [], []
@@ -336,7 +385,7 @@ def run_training(
 
         if early_stopping.step(val_loss, model, tokenizer):
             logger.info("Early stopping ativado!")
-            print("⏹️  Early stopping ativado!")
+            print(" Early stopping ativado!")
             break
 
     return history
@@ -356,11 +405,19 @@ def main():
         "--lr", type=float, default=None,
         help="Override ao learning rate (ex: 3e-5)"
     )
+    parser.add_argument(
+        "--batch_size", type=int, default=None,
+        help="Override ao batch size (ex: 8)"
+    )
     args = parser.parse_args()
 
     if args.lr:
         CONFIG["learning_rate"] = args.lr
         logger.info(f"Learning rate override: {args.lr}")
+
+    if args.batch_size:
+        CONFIG["batch_size"] = args.batch_size
+        logger.info(f"Batch size override: {args.batch_size}")
 
     set_seed(CONFIG["seed"])
     device = get_device()
@@ -369,7 +426,7 @@ def main():
 
     # ── FASE 1 — LIAR ──────────────────────────────────────────────────────
     if args.phase in ["1", "all"]:
-        print("\n🔵 FASE 1 — Pré-fine-tune no LIAR")
+        print("\n FASE 1 — Pré-fine-tune no LIAR")
         train_df = load_liar("train", test_run=args.test_run)
         val_df   = load_liar("val",   test_run=args.test_run)
 
@@ -383,11 +440,11 @@ def main():
             phase_name="LIAR"
         )
         all_history["phase1_liar"] = history
-        print(f"✅ Fase 1 concluída! Modelo em: {save_path}")
+        print(f" Fase 1 concluída! Modelo em: {save_path}")
 
     # ── FASE 2 — FakeNewsNet ───────────────────────────────────────────────
     if args.phase in ["2", "all"]:
-        print("\n🟢 FASE 2 — Fine-tune no FakeNewsNet")
+        print("\n FASE 2 — Fine-tune no FakeNewsNet")
 
         # Usar modelo da Fase 1 como base (se existir)
         liar_model_path = MODELS_DIR / "bert_liar"
@@ -407,14 +464,14 @@ def main():
             phase_name="FakeNewsNet"
         )
         all_history["phase2_fakenewsnet"] = history
-        print(f"✅ Fase 2 concluída! Modelo em: {save_path}")
+        print(f" Fase 2 concluída! Modelo em: {save_path}")
 
     # ── Guardar histórico ──────────────────────────────────────────────────
     history_path = RESULTS_DIR / "bert_training_history.json"
     with open(history_path, "w") as f:
         json.dump(all_history, f, indent=2)
     logger.info(f"Histórico guardado em {history_path}")
-    print(f"\n📊 Histórico guardado em {history_path}")
+    print(f"\n Histórico guardado em {history_path}")
 
 
 if __name__ == "__main__":
