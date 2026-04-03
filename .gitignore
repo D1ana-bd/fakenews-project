@@ -224,3 +224,6 @@ data/processed/CoAID/*.csv
 *.pt
 *.pth
 models/bert_fake_news/
+
+.DS_Store
+data/
