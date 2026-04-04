@@ -71,44 +71,29 @@ def sample_df_with_preds(sample_df):
 
 @pytest.fixture
 def mock_model():
-    """
-    Mock do modelo BERT que devolve logits como tensores PyTorch reais.
-    O truque: usamos side_effect na chamada __call__ para devolver
-    um objeto com .logits como tensor real.
-    """
-    model = MagicMock()
-    model.eval.return_value = model
-
+    """Mock do modelo BERT — side_effect devolve logits como tensores reais."""
     def fake_forward(**kwargs):
         batch_size = kwargs["input_ids"].shape[0]
-        logits_data = []
-        for i in range(batch_size):
-            if i % 2 == 0:
-                logits_data.append([0.2, 2.5])   # → Fake
-            else:
-                logits_data.append([2.5, 0.2])   # → Real
+        logits_data = [[0.2, 2.5] if i % 2 == 0 else [2.5, 0.2] for i in range(batch_size)]
         output = MagicMock()
         output.logits = torch.tensor(logits_data, dtype=torch.float32)
         return output
 
-    model.__call__ = MagicMock(side_effect=fake_forward)
+    model = MagicMock(side_effect=fake_forward)
+    model.eval.return_value = model
     return model
 
 
 @pytest.fixture
 def mock_tokenizer():
-    """Mock do tokenizer BERT que devolve tensores PyTorch reais."""
-    tokenizer = MagicMock()
-
+    """Mock do tokenizer BERT — side_effect devolve tensores reais."""
     def fake_tokenize(texts, **kwargs):
         batch_size = len(texts)
         return {
             "input_ids":      torch.ones(batch_size, 10, dtype=torch.long),
             "attention_mask": torch.ones(batch_size, 10, dtype=torch.long),
         }
-
-    tokenizer.__call__ = MagicMock(side_effect=fake_tokenize)
-    return tokenizer
+    return MagicMock(side_effect=fake_tokenize)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -276,19 +261,21 @@ class TestPredictBatch:
         for pred in preds:
             assert pred in (0, 1), f"Predição inválida: {pred}"
 
-    def test_batch_vazio_nao_da_erro(self, mock_model, mock_tokenizer):
+    def test_batch_vazio_nao_da_erro(self):
         """Batch vazio deve devolver listas vazias sem erros."""
-        mock_tokenizer.__call__ = MagicMock(return_value={
-            "input_ids":      torch.zeros(0, 10, dtype=torch.long),
-            "attention_mask": torch.zeros(0, 10, dtype=torch.long),
-        })
         empty_output = MagicMock()
         empty_output.logits = torch.zeros(0, 2, dtype=torch.float32)
-        mock_model.__call__ = MagicMock(return_value=empty_output)
+        model = MagicMock(return_value=empty_output)
+        model.eval.return_value = model
 
-        preds, scores = predict_batch(
-            [], mock_model, mock_tokenizer, torch.device("cpu")
-        )
+        def empty_tokenize(texts, **kwargs):
+            return {
+                "input_ids":      torch.zeros(0, 10, dtype=torch.long),
+                "attention_mask": torch.zeros(0, 10, dtype=torch.long),
+            }
+        tokenizer = MagicMock(side_effect=empty_tokenize)
+
+        preds, scores = predict_batch([], model, tokenizer, torch.device("cpu"))
         assert preds == []
         assert scores == []
 
@@ -327,16 +314,26 @@ class TestRunInference:
         assert result["score_nlp"].notna().all()
         assert len(result) == len(sample_df)
 
-    def test_batch_size_nao_afeta_resultados(self, sample_df, mock_model, mock_tokenizer):
+    def test_batch_size_nao_afeta_resultados(self, sample_df):
         """Batch size diferente deve dar os mesmos resultados."""
-        result_1 = run_inference(
-            sample_df, mock_model, mock_tokenizer,
-            torch.device("cpu"), batch_size=1
-        )
-        result_4 = run_inference(
-            sample_df, mock_model, mock_tokenizer,
-            torch.device("cpu"), batch_size=4
-        )
+        # mock determinístico: sempre devolve Fake, independente do índice
+        def det_forward(**kwargs):
+            batch_size = kwargs["input_ids"].shape[0]
+            output = MagicMock()
+            output.logits = torch.tensor([[0.2, 2.5]] * batch_size, dtype=torch.float32)
+            return output
+
+        def det_tokenize(texts, **kwargs):
+            return {
+                "input_ids":      torch.ones(len(texts), 10, dtype=torch.long),
+                "attention_mask": torch.ones(len(texts), 10, dtype=torch.long),
+            }
+
+        model     = MagicMock(side_effect=det_forward)
+        tokenizer = MagicMock(side_effect=det_tokenize)
+
+        result_1 = run_inference(sample_df, model, tokenizer, torch.device("cpu"), batch_size=1)
+        result_4 = run_inference(sample_df, model, tokenizer, torch.device("cpu"), batch_size=4)
         assert list(result_1["pred_nlp"]) == list(result_4["pred_nlp"])
 
 

@@ -48,7 +48,7 @@ OUTPUT_PATH = RESULTS_METRICS / "predictions_bert.json"
 
 # ── logger ─────────────────────────────────────────────────────────────────
 try:
-    from FKNWS.utils.get_logger import get_logger
+    from src.FKNWS.utils.get_logger import get_logger
     logger = get_logger("generate_predictions")
 except ImportError:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
