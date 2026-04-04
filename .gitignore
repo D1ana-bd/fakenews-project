@@ -206,24 +206,28 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-# Dados
+# ── Dados ──────────────────────────────────────────────────────────────────
 data/raw/fakenewsnet/*.csv
 data/processed/fakenewsnet/*.csv
-*.csv
-# Dados
 data/raw/LIAR/*.tsv
 data/processed/LIAR/*.tsv
-*.csv
-# Dados
 data/raw/CoAID/*.csv
 data/processed/CoAID/*.csv
 *.csv
-# Modelos
-# Modelos — ignorar pesos mas não o código
+
+# ── Modelos — ignorar pesos mas não o código fonte ─────────────────────────
 *.bin
 *.pt
 *.pth
+*.safetensors
+models/bert_liar/
 models/bert_fake_news/
 
+# ── Sistema ────────────────────────────────────────────────────────────────
 .DS_Store
+__pycache__/
+*.pyc
+*.pyo
+.env
+*.egg-info/
 data/
