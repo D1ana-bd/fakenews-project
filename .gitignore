@@ -230,4 +230,4 @@ __pycache__/
 *.pyo
 .env
 *.egg-info/
-data/
+data/.idea/
