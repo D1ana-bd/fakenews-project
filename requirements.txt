@@ -11,6 +11,5 @@ streamlit
 pyvis
 accelerate
 pytest
-argparse
 pathlib
 tqdm
