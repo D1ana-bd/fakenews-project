@@ -6,10 +6,11 @@ Ensemble XGBoost combinando features NLP + Análise de Redes.
 Substitui o ensemble linear (α fixo) por um classificador que aprende
 automaticamente os pesos ótimos das features.
 
-Testa 3 abordagens NLP:
-    Abordagem 1: BERT atual (treinado título+texto, aplicado a títulos)
-    Abordagem 2: Zero-shot (sem treino)
-    Abordagem 3: BERT re-treinado só com títulos (TODO: fase seguinte)
+Testa 4 abordagens NLP:
+    Abordagem 1:  BERT atual (treinado título+texto, aplicado a títulos)
+    Abordagem 2:  Zero-shot (sem treino)
+    Abordagem 3a: DistilBERT re-treinado só com títulos + data aug
+    Abordagem 3b: BERT re-treinado só com títulos + data aug
 
 Features do ensemble:
     score_nlp               ← score do módulo NLP
@@ -47,10 +48,14 @@ from xgboost import XGBClassifier
 ROOT             = Path(__file__).resolve().parents[3]
 METRICS_DIR      = ROOT / "results" / "metrics"
 
-BERT_PREDS_PATH  = METRICS_DIR / "predictions_bert.json"
-ZSHOT_PREDS_PATH = METRICS_DIR / "results_zeroshot.json"
-NETWORK_PATH     = METRICS_DIR / "network_metrics.csv"
-OUTPUT_PATH      = METRICS_DIR / "results_xgboost.json"
+BERT_PREDS_PATH        = METRICS_DIR / "predictions_bert.json"
+ZSHOT_PREDS_PATH       = METRICS_DIR / "results_zeroshot.json"
+NETWORK_PATH           = METRICS_DIR / "network_metrics.csv"
+OUTPUT_PATH            = METRICS_DIR / "results_xgboost.json"
+
+# paths para modelos Abordagem 3
+DISTILBERT_TITLES_PATH = ROOT / "models" / "distilbert_titles"
+BERT_TITLES_PATH       = ROOT / "models" / "bert_titles"
 
 # features de rede (mesmas do integration.py)
 NETWORK_FEATURES = [
@@ -63,7 +68,7 @@ NETWORK_FEATURES = [
 
 # ── logger ───────────────────────────────────────────────────────────────────
 try:
-    from src.FKNWS.utils.get_logger import get_logger
+    from src. FKNWS.utils.get_logger import get_logger
     logger = get_logger("ensemble_xgboost")
 except ImportError:
     logging.basicConfig(
@@ -338,6 +343,42 @@ def run(approach: str = "all") -> dict:
         else:
             logger.warning("Zero-shot no gossipcop não disponível — a saltar.")
 
+    # ── Abordagem 3a: DistilBERT títulos ────────────────────────────────
+    if approach in ("distilbert_titles", "all"):
+        logger.info("\n── Abordagem 3a: DistilBERT títulos + XGBoost ──")
+        df_distilbert = run_titles_model_on_gossipcop(
+            DISTILBERT_TITLES_PATH, "score_nlp_distilbert", df_net
+        )
+        if df_distilbert is not None and len(df_distilbert) > 0:
+            X_dist, y_dist = prepare_features(
+                df_distilbert, df_net,
+                nlp_col="score_nlp_distilbert",
+                join_col="article_id",
+            )
+            results["abordagem_3a_distilbert"] = train_evaluate_xgboost(
+                X_dist, y_dist, "DistilBERT títulos + XGBoost"
+            )
+        else:
+            logger.warning("DistilBERT títulos não disponível — a saltar.")
+
+    # ── Abordagem 3b: BERT títulos ───────────────────────────────────────
+    if approach in ("bert_titles", "all"):
+        logger.info("\n── Abordagem 3b: BERT títulos + XGBoost ──")
+        df_bert_titles = run_titles_model_on_gossipcop(
+            BERT_TITLES_PATH, "score_nlp_bert_titles", df_net
+        )
+        if df_bert_titles is not None and len(df_bert_titles) > 0:
+            X_bt, y_bt = prepare_features(
+                df_bert_titles, df_net,
+                nlp_col="score_nlp_bert_titles",
+                join_col="article_id",
+            )
+            results["abordagem_3b_bert_titles"] = train_evaluate_xgboost(
+                X_bt, y_bt, "BERT títulos + XGBoost"
+            )
+        else:
+            logger.warning("BERT títulos não disponível — a saltar.")
+
     # ── comparação final ─────────────────────────────────────────────────
     logger.info("\n" + "=" * 60)
     logger.info("COMPARAÇÃO FINAL — XGBoost vs Ensemble Linear")
@@ -450,6 +491,127 @@ def run_zeroshot_on_gossipcop(df_net: pd.DataFrame) -> pd.DataFrame | None:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# 4b. ABORDAGENS 3a/3b — BERT/DistilBERT TÍTULOS NO GOSSIPCOP
+# ═══════════════════════════════════════════════════════════════════════════
+
+def run_titles_model_on_gossipcop(
+    model_path: Path,
+    score_col: str,
+    df_net: pd.DataFrame,
+) -> "pd.DataFrame | None":
+    """
+    Aplica BERT ou DistilBERT treinado só com títulos
+    aos títulos do gossipcop/politifact.
+
+    Parameters
+    ----------
+    model_path : Path para o modelo guardado (bert_titles/ ou distilbert_titles/)
+    score_col  : nome da coluna do score (score_nlp_distilbert ou score_nlp_bert_titles)
+    df_net     : DataFrame com métricas de rede (para filtrar artigos)
+
+    Returns
+    -------
+    DataFrame com article_id, label, score_col
+    ou None se falhar
+    """
+    import sys
+    sys.path.insert(0, str(ROOT / "src"))
+
+    import torch
+    import torch.nn.functional as F
+
+    RAW_DATA = ROOT / "data" / "raw" / "fakenewsnet"
+
+    try:
+        if not model_path.exists():
+            logger.warning(f"Modelo não encontrado: {model_path}")
+            return None
+
+        # carregar títulos do gossipcop/politifact
+        files = {
+            "gossipcop_fake.csv":  1,
+            "gossipcop_real.csv":  0,
+            "politifact_fake.csv": 1,
+            "politifact_real.csv": 0,
+        }
+        dfs = []
+        for fname, label in files.items():
+            path = RAW_DATA / fname
+            if path.exists():
+                df = pd.read_csv(path, usecols=["id", "title"])
+                df = df.rename(columns={"id": "article_id"})
+                df["label"] = label
+                dfs.append(df)
+
+        df_all = pd.concat(dfs, ignore_index=True)
+        df_all = df_all.dropna(subset=["title"])
+        df_all = df_all[df_all["title"].str.strip() != ""]
+        df_all = df_all.drop_duplicates(subset=["article_id"])
+
+        # filtrar para artigos com métricas de rede
+        ids_com_rede = set(df_net["article_id"].values)
+        df_all = df_all[df_all["article_id"].isin(ids_com_rede)]
+        logger.info(f"Artigos para {model_path.name}: {len(df_all)}")
+
+        if len(df_all) == 0:
+            return None
+
+        # device
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        # detectar se é DistilBERT ou BERT pelo config
+        import json as _json
+        config_path = model_path / "config.json"
+        with open(config_path) as f:
+            cfg = _json.load(f)
+        model_type = cfg.get("model_type", "bert")
+
+        if model_type == "distilbert":
+            from transformers import DistilBertForSequenceClassification, DistilBertTokenizer
+            tokenizer = DistilBertTokenizer.from_pretrained(model_path)
+            model     = DistilBertForSequenceClassification.from_pretrained(model_path)
+        else:
+            from transformers import BertForSequenceClassification, BertTokenizer
+            tokenizer = BertTokenizer.from_pretrained(model_path)
+            model     = BertForSequenceClassification.from_pretrained(model_path)
+
+        model.to(device)
+        model.eval()
+
+        # inferência em batches
+        titles     = df_all["title"].tolist()
+        all_scores = []
+        batch_size = 32
+
+        from tqdm import tqdm
+        for i in tqdm(range(0, len(titles), batch_size),
+                      desc=f"Inferência {model_path.name}"):
+            batch = titles[i:i+batch_size]
+            enc   = tokenizer(
+                batch, truncation=True, padding=True,
+                max_length=128, return_tensors="pt"
+            )
+            enc = {k: v.to(device) for k, v in enc.items()}
+            with torch.no_grad():
+                logits = model(**enc).logits
+                probs  = F.softmax(logits, dim=-1)
+            scores = probs[:, 1].cpu().tolist()
+            all_scores.extend(scores)
+
+        df_all[score_col] = all_scores
+        logger.info(
+            f"{model_path.name} concluído: "
+            f"mean_fake={df_all[df_all['label']==1][score_col].mean():.3f} | "
+            f"mean_real={df_all[df_all['label']==0][score_col].mean():.3f}"
+        )
+        return df_all[["article_id", "label", score_col]]
+
+    except Exception as e:
+        logger.error(f"Erro em {model_path.name}: {e}")
+        return None
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # 5. CLI
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -459,7 +621,7 @@ def parse_args():
     )
     parser.add_argument(
         "--approach",
-        choices=["bert", "zeroshot", "all"],
+        choices=["bert", "zeroshot", "distilbert_titles", "bert_titles", "all"],
         default="all",
         help="Abordagem NLP a usar (default: all)",
     )
