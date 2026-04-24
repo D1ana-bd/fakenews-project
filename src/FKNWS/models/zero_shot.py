@@ -1,338 +1,334 @@
 """
-test_zero_shot.py
-=================
-Testes unitários para src/FKNWS/models/zero_shot.py
+zero_shot.py
+============
+Abordagem 2 — Zero-Shot Classification para deteção de fake news.
 
-Cobre:
-    - Carregamento do test.csv
-    - Classificação zero-shot (mock do pipeline)
-    - Conversão de scores para formato correto
-    - Avaliação de métricas
-    - Guardar resultados JSON
-    - Edge cases: títulos vazios, labels incorretos
+Usa um modelo NLI (Natural Language Inference) pré-treinado para classificar
+títulos de notícias como fake ou real SEM necessidade de fine-tuning.
+
+Modelo: cross-encoder/nli-deberta-v3-small
+Input:  title_clean do test.csv
+Output: results/metrics/results_zeroshot.json
 
 Uso:
-    pytest tests/test_zero_shot.py -v
+    python src/FKNWS/models/zero_shot.py
+    python src/FKNWS/models/zero_shot.py --batch_size 8
 """
 
+import argparse
 import json
-import sys
+import logging
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pandas as pd
-import pytest
-
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "src"))
-
-from FKNWS.models.zero_shot import (
-    classify_titles,
-    convert_to_score,
-    evaluate_zeroshot,
-    load_test_data,
-    save_results,
+from sklearn.metrics import (
+    accuracy_score,
+    f1_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
 )
+from tqdm import tqdm
+
+# ── paths ───────────────────────────────────────────────────────────────────
+ROOT            = Path(__file__).resolve().parents[3]
+TEST_CSV_PATH   = ROOT / "data" / "processed" / "fakenewsnet" / "test.csv"
+RESULTS_PATH    = ROOT / "results" / "metrics" / "results_zeroshot.json"
+
+# ── modelo ───────────────────────────────────────────────────────────────────
+MODEL_NAME = "cross-encoder/nli-deberta-v3-small"
+
+# labels — descrição semântica rica melhora o zero-shot
+CANDIDATE_LABELS = [
+    "fake news or misinformation with misleading claims",
+    "factual and verified news reporting",
+]
+FAKE_LABEL = CANDIDATE_LABELS[0]  # índice do label fake
+
+# ── logger ───────────────────────────────────────────────────────────────────
+try:
+    from FKNWS.utils.get_logger import get_logger
+    logger = get_logger("zero_shot")
+except ImportError:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(message)s"
+    )
+    logger = logging.getLogger("zero_shot")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# FIXTURES
+# 1. CARREGAMENTO DE DADOS
 # ═══════════════════════════════════════════════════════════════════════════
 
-@pytest.fixture
-def sample_test_csv(tmp_path):
-    """Cria um test.csv temporário."""
-    df = pd.DataFrame({
-        "id":          ["Fake_1", "Real_1", "Fake_2", "Real_2", "Fake_3"],
-        "title_clean": [
-            "Government hiding secret cure for cancer",
-            "Federal Reserve raises interest rates",
-            "SHOCKING conspiracy revealed by whistleblower",
-            "Scientists publish new climate research",
-            "You won't believe what they found",
-        ],
-        "text_clean":  ["text1", "text2", "text3", "text4", "text5"],
-        "label":       [1, 0, 1, 0, 1],
-    })
-    path = tmp_path / "test.csv"
-    df.to_csv(path, index=False)
-    return path
+def load_test_data(path: Path) -> pd.DataFrame:
+    """
+    Carrega o test.csv e filtra títulos vazios.
+
+    Returns
+    -------
+    DataFrame com colunas: id, title_clean, label
+    """
+    if not path.exists():
+        raise FileNotFoundError(f"Ficheiro não encontrado: {path}")
+
+    df = pd.read_csv(path)
+
+    required = {"id", "title_clean", "label"}
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(f"Colunas em falta: {missing}")
+
+    # remover títulos vazios
+    n_before = len(df)
+    df = df.dropna(subset=["title_clean"])
+    df = df[df["title_clean"].str.strip() != ""]
+    n_removed = n_before - len(df)
+    if n_removed > 0:
+        logger.warning(f"{n_removed} títulos vazios removidos")
+
+    logger.info(f"Test data carregada: {len(df)} artigos")
+    logger.info(f"  Fake: {df['label'].sum()} | Real: {(df['label']==0).sum()}")
+    return df.reset_index(drop=True)
 
 
-@pytest.fixture
-def mock_pipeline():
-    """Mock do pipeline zero-shot que devolve resultados fixos."""
-    def fake_classify(texts, candidate_labels, **kwargs):
-        # se receber lista, devolve lista de resultados
-        if isinstance(texts, list):
-            results = []
-            for text in texts:
-                # simula: textos com "conspiracy" ou "secret" → fake
-                if any(w in text.lower() for w in ["conspiracy", "secret", "shocking", "won't believe"]):
-                    results.append({
-                        "labels": ["fake news", "real news"],
-                        "scores": [0.85, 0.15],
-                    })
-                else:
-                    results.append({
-                        "labels": ["fake news", "real news"],
-                        "scores": [0.20, 0.80],
-                    })
-            return results
-        else:
-            # texto único
-            return {
-                "labels": ["fake news", "real news"],
-                "scores": [0.75, 0.25],
-            }
+# ═══════════════════════════════════════════════════════════════════════════
+# 2. CLASSIFICAÇÃO ZERO-SHOT
+# ═══════════════════════════════════════════════════════════════════════════
 
-    return MagicMock(side_effect=fake_classify)
+def convert_to_score(result: dict) -> float:
+    """
+    Converte o output do pipeline zero-shot para score_fake ∈ [0,1].
+
+    O pipeline devolve labels ordenados por score decrescente.
+    Precisamos de encontrar o índice do label fake independentemente
+    da ordem.
+
+    Parameters
+    ----------
+    result : dict com 'labels' e 'scores'
+
+    Returns
+    -------
+    score_fake ∈ [0,1]
+    """
+    labels = result["labels"]
+    scores = result["scores"]
+
+    # encontrar índice do label fake
+    fake_idx = next(
+        (i for i, l in enumerate(labels) if "fake" in l.lower()),
+        0  # default: primeiro label
+    )
+    return float(scores[fake_idx])
 
 
-@pytest.fixture
-def sample_zeroshot_results():
-    """Resultados simulados do zero-shot para 5 artigos."""
-    return [
-        {"labels": ["fake news", "real news"], "scores": [0.85, 0.15]},
-        {"labels": ["fake news", "real news"], "scores": [0.20, 0.80]},
-        {"labels": ["fake news", "real news"], "scores": [0.78, 0.22]},
-        {"labels": ["fake news", "real news"], "scores": [0.15, 0.85]},
-        {"labels": ["fake news", "real news"], "scores": [0.90, 0.10]},
+def classify_titles(
+    titles: list[str],
+    pipeline,
+    batch_size: int = 8,
+) -> list[dict]:
+    """
+    Classifica uma lista de títulos usando o pipeline zero-shot.
+
+    Parameters
+    ----------
+    titles     : lista de strings
+    pipeline   : pipeline zero-shot da HuggingFace
+    batch_size : tamanho do batch
+
+    Returns
+    -------
+    lista de dicts com 'labels' e 'scores'
+    """
+    if not titles:
+        return []
+
+    all_results = []
+
+    for i in tqdm(range(0, len(titles), batch_size),
+                  desc="Zero-shot classification"):
+        batch = titles[i: i + batch_size]
+        batch_results = pipeline(
+            batch,
+            candidate_labels=CANDIDATE_LABELS,
+            multi_label=False,
+        )
+        # pipeline devolve lista se input for lista
+        if isinstance(batch_results, dict):
+            batch_results = [batch_results]
+        all_results.extend(batch_results)
+
+    return all_results
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 3. AVALIAÇÃO
+# ═══════════════════════════════════════════════════════════════════════════
+
+def evaluate_zeroshot(
+    y_true: list[int],
+    results: list[dict],
+    threshold: float = 0.5,
+) -> dict:
+    """
+    Avalia as predições zero-shot.
+
+    Parameters
+    ----------
+    y_true    : labels reais (0=Real, 1=Fake)
+    results   : lista de dicts do pipeline
+    threshold : limiar de decisão
+
+    Returns
+    -------
+    dict com accuracy, precision, recall, f1, auc
+    """
+    scores_fake = [convert_to_score(r) for r in results]
+    y_pred      = [1 if s >= threshold else 0 for s in scores_fake]
+
+    metrics = {
+        "accuracy":  round(accuracy_score(y_true, y_pred), 4),
+        "precision": round(precision_score(y_true, y_pred, zero_division=0), 4),
+        "recall":    round(recall_score(y_true, y_pred, zero_division=0), 4),
+        "f1":        round(f1_score(y_true, y_pred, zero_division=0), 4),
+    }
+
+    try:
+        metrics["auc"] = round(roc_auc_score(y_true, scores_fake), 4)
+    except ValueError:
+        metrics["auc"] = None
+
+    logger.info(
+        f"[Zero-shot] Acc={metrics['accuracy']} | "
+        f"P={metrics['precision']} | R={metrics['recall']} | "
+        f"F1={metrics['f1']} | AUC={metrics['auc']}"
+    )
+    return metrics
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 4. GUARDAR RESULTADOS
+# ═══════════════════════════════════════════════════════════════════════════
+
+def save_results(
+    metrics: dict,
+    y_true: list[int],
+    results: list[dict],
+    titles: list[str],
+    path: Path,
+) -> None:
+    """
+    Guarda resultados em JSON.
+
+    Estrutura:
+        {
+          "model": "cross-encoder/nli-deberta-v3-small",
+          "approach": "zero-shot",
+          "candidate_labels": [...],
+          "metrics": {...},
+          "n_articles": N,
+          "predictions": [
+            {"title": "...", "label": 1, "pred": 1, "score_fake": 0.82},
+            ...
+          ]
+        }
+    """
+    scores_fake = [convert_to_score(r) for r in results]
+    y_pred      = [1 if s >= 0.5 else 0 for s in scores_fake]
+
+    predictions = [
+        {
+            "title":      title,
+            "label":      int(label),
+            "pred":       int(pred),
+            "score_fake": round(float(score), 6),
+        }
+        for title, label, pred, score in zip(titles, y_true, y_pred, scores_fake)
     ]
 
+    output = {
+        "model":            MODEL_NAME,
+        "approach":         "zero-shot",
+        "candidate_labels": CANDIDATE_LABELS,
+        "metrics":          metrics,
+        "n_articles":       len(predictions),
+        "predictions":      predictions,
+    }
 
-# ═══════════════════════════════════════════════════════════════════════════
-# TESTES: load_test_data
-# ═══════════════════════════════════════════════════════════════════════════
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(output, f, indent=2, ensure_ascii=False)
 
-class TestLoadTestData:
-
-    def test_carrega_colunas_necessarias(self, sample_test_csv):
-        """Deve carregar id, title_clean e label."""
-        df = load_test_data(sample_test_csv)
-        assert "id" in df.columns
-        assert "title_clean" in df.columns
-        assert "label" in df.columns
-
-    def test_numero_linhas_correto(self, sample_test_csv):
-        """Deve carregar todas as linhas."""
-        df = load_test_data(sample_test_csv)
-        assert len(df) == 5
-
-    def test_labels_sao_binarios(self, sample_test_csv):
-        """Labels devem ser 0 ou 1."""
-        df = load_test_data(sample_test_csv)
-        assert set(df["label"].unique()).issubset({0, 1})
-
-    def test_remove_titulos_vazios(self, tmp_path):
-        """Deve remover linhas com título vazio ou NaN."""
-        df = pd.DataFrame({
-            "id":          ["Fake_1", "Real_1", "Fake_2"],
-            "title_clean": ["Valid title", "", None],
-            "label":       [1, 0, 1],
-        })
-        path = tmp_path / "test.csv"
-        df.to_csv(path, index=False)
-        result = load_test_data(path)
-        assert len(result) == 1
-        assert result.iloc[0]["id"] == "Fake_1"
-
-    def test_erro_se_ficheiro_nao_existe(self):
-        """Deve lançar erro se o ficheiro não existir."""
-        with pytest.raises(FileNotFoundError):
-            load_test_data(Path("/nao/existe/test.csv"))
+    logger.info(f"Resultados guardados: {path}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# TESTES: convert_to_score
+# 5. PIPELINE PRINCIPAL
 # ═══════════════════════════════════════════════════════════════════════════
 
-class TestConvertToScore:
+def run(batch_size: int = 8) -> dict:
+    """Pipeline completo zero-shot."""
+    import torch
+    from transformers import pipeline
 
-    def test_score_fake_quando_fake_primeiro(self):
-        """Se 'fake news' for o primeiro label, score_fake = scores[0]."""
-        result = {
-            "labels": ["fake news", "real news"],
-            "scores": [0.75, 0.25],
-        }
-        score = convert_to_score(result)
-        assert abs(score - 0.75) < 1e-6
+    logger.info("=" * 60)
+    logger.info("ABORDAGEM 2 — ZERO-SHOT CLASSIFICATION")
+    logger.info("=" * 60)
 
-    def test_score_fake_quando_real_primeiro(self):
-        """Se 'real news' for o primeiro label, score_fake = scores[1]."""
-        result = {
-            "labels": ["real news", "fake news"],
-            "scores": [0.30, 0.70],
-        }
-        score = convert_to_score(result)
-        assert abs(score - 0.70) < 1e-6
+    # device
+    device = 0 if torch.cuda.is_available() else -1
+    logger.info(f"Device: {'cuda' if device == 0 else 'cpu'}")
 
-    def test_score_entre_0_e_1(self):
-        """Score deve estar em [0,1]."""
-        result = {
-            "labels": ["fake news", "real news"],
-            "scores": [0.60, 0.40],
-        }
-        score = convert_to_score(result)
-        assert 0.0 <= score <= 1.0
+    # carregar dados
+    df = load_test_data(TEST_CSV_PATH)
 
-    def test_scores_somam_1(self):
-        """scores[0] + scores[1] deve ser ≈ 1.0."""
-        result = {
-            "labels": ["fake news", "real news"],
-            "scores": [0.55, 0.45],
-        }
-        score = convert_to_score(result)
-        assert 0.0 <= score <= 1.0
+    # carregar pipeline
+    logger.info(f"A carregar modelo: {MODEL_NAME}")
+    classifier = pipeline(
+        "zero-shot-classification",
+        model=MODEL_NAME,
+        device=device,
+    )
 
+    # classificar
+    titles = df["title_clean"].tolist()
+    results = classify_titles(titles, classifier, batch_size=batch_size)
 
-# ═══════════════════════════════════════════════════════════════════════════
-# TESTES: classify_titles
-# ═══════════════════════════════════════════════════════════════════════════
+    # avaliar
+    y_true  = df["label"].tolist()
+    metrics = evaluate_zeroshot(y_true, results)
 
-class TestClassifyTitles:
+    # comparação com BERT atual
+    logger.info("\n" + "=" * 60)
+    logger.info("COMPARAÇÃO — Zero-shot vs BERT fine-tuned")
+    logger.info("=" * 60)
+    logger.info(f"  Zero-shot F1  : {metrics['f1']}")
+    logger.info(f"  BERT cascata  : 0.5217  (referência Objetivo 1)")
+    logger.info(f"  Diferença F1  : {round(metrics['f1'] - 0.5217, 4):+.4f}")
+    logger.info("=" * 60)
 
-    def test_devolve_lista_do_mesmo_tamanho(self, mock_pipeline):
-        """Deve devolver lista com mesmo número de títulos."""
-        titles = ["Title A", "Title B", "Title C"]
-        results = classify_titles(titles, mock_pipeline)
-        assert len(results) == 3
+    # guardar
+    save_results(metrics, y_true, results, titles, RESULTS_PATH)
 
-    def test_cada_resultado_tem_labels_e_scores(self, mock_pipeline):
-        """Cada resultado deve ter 'labels' e 'scores'."""
-        titles = ["Title A"]
-        results = classify_titles(titles, mock_pipeline)
-        assert "labels" in results[0]
-        assert "scores" in results[0]
-
-    def test_scores_sao_floats(self, mock_pipeline):
-        """Scores devem ser floats."""
-        titles = ["Title A", "Title B"]
-        results = classify_titles(titles, mock_pipeline)
-        for r in results:
-            for s in r["scores"]:
-                assert isinstance(s, float)
-
-    def test_lista_vazia_nao_da_erro(self, mock_pipeline):
-        """Lista vazia deve devolver lista vazia."""
-        results = classify_titles([], mock_pipeline)
-        assert results == []
+    return metrics
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# TESTES: evaluate_zeroshot
+# 6. CLI
 # ═══════════════════════════════════════════════════════════════════════════
 
-class TestEvaluateZeroshot:
-
-    def test_devolve_metricas_obrigatorias(self, sample_zeroshot_results):
-        """Deve devolver accuracy, precision, recall, f1, auc."""
-        y_true = [1, 0, 1, 0, 1]
-        metrics = evaluate_zeroshot(y_true, sample_zeroshot_results)
-        assert "accuracy"  in metrics
-        assert "precision" in metrics
-        assert "recall"    in metrics
-        assert "f1"        in metrics
-        assert "auc"       in metrics
-
-    def test_metricas_entre_0_e_1(self, sample_zeroshot_results):
-        """Todas as métricas devem estar em [0,1]."""
-        y_true = [1, 0, 1, 0, 1]
-        metrics = evaluate_zeroshot(y_true, sample_zeroshot_results)
-        for k, v in metrics.items():
-            if v is not None:
-                assert 0.0 <= v <= 1.0, f"{k}={v} fora de [0,1]"
-
-    def test_perfeito_da_f1_1(self):
-        """Predição perfeita deve dar F1=1.0."""
-        y_true = [1, 0, 1, 0]
-        results = [
-            {"labels": ["fake news", "real news"], "scores": [0.9, 0.1]},
-            {"labels": ["fake news", "real news"], "scores": [0.1, 0.9]},
-            {"labels": ["fake news", "real news"], "scores": [0.9, 0.1]},
-            {"labels": ["fake news", "real news"], "scores": [0.1, 0.9]},
-        ]
-        metrics = evaluate_zeroshot(y_true, results)
-        assert metrics["f1"] == 1.0
-
-    def test_tamanho_y_true_igual_resultados(self, sample_zeroshot_results):
-        """y_true e results devem ter o mesmo tamanho."""
-        y_true = [1, 0, 1, 0, 1]
-        assert len(y_true) == len(sample_zeroshot_results)
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Zero-shot classification para fake news (Abordagem 2)"
+    )
+    parser.add_argument(
+        "--batch_size", type=int, default=8,
+        help="Tamanho do batch (default: 8)",
+    )
+    return parser.parse_args()
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# TESTES: save_results
-# ═══════════════════════════════════════════════════════════════════════════
-
-class TestSaveResults:
-
-    def test_cria_ficheiro_json(self, tmp_path, sample_zeroshot_results):
-        """Deve criar ficheiro JSON."""
-        y_true = [1, 0, 1, 0, 1]
-        metrics = {"accuracy": 0.8, "f1": 0.75, "auc": 0.82,
-                   "precision": 0.77, "recall": 0.73}
-        titles = ["T1", "T2", "T3", "T4", "T5"]
-        path = tmp_path / "results_zeroshot.json"
-        save_results(metrics, y_true, sample_zeroshot_results, titles, path)
-        assert path.exists()
-
-    def test_estrutura_json_correta(self, tmp_path, sample_zeroshot_results):
-        """JSON deve ter campos obrigatórios."""
-        y_true = [1, 0, 1, 0, 1]
-        metrics = {"accuracy": 0.8, "f1": 0.75, "auc": 0.82,
-                   "precision": 0.77, "recall": 0.73}
-        titles = ["T1", "T2", "T3", "T4", "T5"]
-        path = tmp_path / "results_zeroshot.json"
-        save_results(metrics, y_true, sample_zeroshot_results, titles, path)
-
-        with open(path) as f:
-            data = json.load(f)
-
-        assert "model"       in data
-        assert "metrics"     in data
-        assert "predictions" in data
-        assert "n_articles"  in data
-
-    def test_metricas_guardadas_corretamente(self, tmp_path, sample_zeroshot_results):
-        """Métricas devem ser guardadas com valores corretos."""
-        y_true = [1, 0, 1, 0, 1]
-        metrics = {"accuracy": 0.8, "f1": 0.75, "auc": 0.82,
-                   "precision": 0.77, "recall": 0.73}
-        titles = ["T1", "T2", "T3", "T4", "T5"]
-        path = tmp_path / "results_zeroshot.json"
-        save_results(metrics, y_true, sample_zeroshot_results, titles, path)
-
-        with open(path) as f:
-            data = json.load(f)
-
-        assert data["metrics"]["f1"] == 0.75
-        assert data["metrics"]["auc"] == 0.82
-
-    def test_predictions_tem_campos_obrigatorios(self, tmp_path, sample_zeroshot_results):
-        """Cada predição deve ter title, label, pred, score_fake."""
-        y_true = [1, 0, 1, 0, 1]
-        metrics = {"accuracy": 0.8, "f1": 0.75, "auc": 0.82,
-                   "precision": 0.77, "recall": 0.73}
-        titles = ["T1", "T2", "T3", "T4", "T5"]
-        path = tmp_path / "results_zeroshot.json"
-        save_results(metrics, y_true, sample_zeroshot_results, titles, path)
-
-        with open(path) as f:
-            data = json.load(f)
-
-        for pred in data["predictions"]:
-            assert "title"      in pred
-            assert "label"      in pred
-            assert "pred"       in pred
-            assert "score_fake" in pred
-
-    def test_cria_diretorias_se_nao_existem(self, tmp_path, sample_zeroshot_results):
-        """Deve criar diretorias intermédias se não existirem."""
-        y_true = [1, 0, 1, 0, 1]
-        metrics = {"accuracy": 0.8, "f1": 0.75, "auc": 0.82,
-                   "precision": 0.77, "recall": 0.73}
-        titles = ["T1", "T2", "T3", "T4", "T5"]
-        path = tmp_path / "subdir" / "results_zeroshot.json"
-        save_results(metrics, y_true, sample_zeroshot_results, titles, path)
-        assert path.exists()
+if __name__ == "__main__":
+    args = parse_args()
+    run(batch_size=args.batch_size)
