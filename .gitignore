@@ -231,3 +231,6 @@ __pycache__/
 .env
 *.egg-info/
 data/.idea/
+
+models/distilbert_titles/
+models/bert_titles/
