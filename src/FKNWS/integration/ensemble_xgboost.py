@@ -424,7 +424,7 @@ def run_zeroshot_on_gossipcop(df_net: pd.DataFrame) -> pd.DataFrame | None:
             device=device,
         )
 
-        from FKNWS.models.zero_shot import (
+        from src.FKNWS.models.zero_shot import (
             CANDIDATE_LABELS,
             classify_titles,
             convert_to_score,
