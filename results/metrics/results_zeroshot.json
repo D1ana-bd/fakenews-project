@@ -1,0 +1,276 @@
+{
+  "model": "cross-encoder/nli-deberta-v3-small",
+  "approach": "zero-shot",
+  "candidate_labels": [
+    "fake news or misinformation with misleading claims",
+    "factual and verified news reporting"
+  ],
+  "metrics": {
+    "accuracy": 0.4651,
+    "precision": 0.4762,
+    "recall": 0.9524,
+    "f1": 0.6349,
+    "auc": 0.4881
+  },
+  "n_articles": 43,
+  "predictions": [
+    {
+      "title": "ABC News Breaking News, Latest News, Headlines Videos",
+      "label": 1,
+      "pred": 1,
+      "score_fake": 0.861128
+    },
+    {
+      "title": "Donald Trump Jr. Compares Syrian Refugees to Skittles",
+      "label": 1,
+      "pred": 1,
+      "score_fake": 0.897223
+    },
+    {
+      "title": "Changing Your Baby's Diaper Is Now A Sex Crime In Arizona",
+      "label": 1,
+      "pred": 1,
+      "score_fake": 0.990403
+    },
+    {
+      "title": "Senate Dems Move To Force Trump To Release His Tax Returns",
+      "label": 0,
+      "pred": 1,
+      "score_fake": 0.966675
+    },
+    {
+      "title": "Famous dog killed in spot she waited a year for her owner to return to! VIDEO",
+      "label": 1,
+      "pred": 1,
+      "score_fake": 0.851894
+    },
+    {
+      "title": "NFL Superstar Unleashes 4 Word Bombshell on Reporter Pushing Him to Protest Anthem",
+      "label": 1,
+      "pred": 1,
+      "score_fake": 0.973195
+    },
+    {
+      "title": "RACE TIED on debate day; Colo. and Pa. have turned tight -- CLINTON hosting more than 1,200 watch parties -- THE PLAYBOOK INTERVIEW: Stephanie Schriock -- BDAY: Dave Weigel",
+      "label": 1,
+      "pred": 1,
+      "score_fake": 0.959983
+    },
+    {
+      "title": "Anti-Trump Super PAC Launches Pre-Debate Video Featuring Hofstra Students",
+      "label": 0,
+      "pred": 1,
+      "score_fake": 0.948316
+    },
+    {
+      "title": "Donald Trump, Germanys disfavored son POLITICO",
+      "label": 0,
+      "pred": 1,
+      "score_fake": 0.95373
+    },
+    {
+      "title": "Homosexual Thinks Muslims Will Accept Him, Instantly Learns How They Deal With LGBT",
+      "label": 1,
+      "pred": 1,
+      "score_fake": 0.984339
+    },
+    {
+      "title": "SICK! Muslim Refugee Beats, Urinates On Pregnant Woman After Seeing What She Has Freedom Daily",
+      "label": 1,
+      "pred": 1,
+      "score_fake": 0.987393
+    },
+    {
+      "title": "McConnell plays hardball in spending fight",
+      "label": 1,
+      "pred": 1,
+      "score_fake": 0.910091
+    },
+    {
+      "title": "Trump Said Not Paying Taxes Makes Him \"Smart.\" Mark Cuban's Response Is Powerful",
+      "label": 0,
+      "pred": 1,
+      "score_fake": 0.921786
+    },
+    {
+      "title": "Obamas Speech In New York Shocks Americans When He Says THIS About Attacks!",
+      "label": 1,
+      "pred": 1,
+      "score_fake": 0.969769
+    },
+    {
+      "title": "McConnell punts budget vote to buy time for deal",
+      "label": 0,
+      "pred": 1,
+      "score_fake": 0.977391
+    },
+    {
+      "title": "Bill And Hillary Clinton Have A MAJOR AIDS Scandal!",
+      "label": 1,
+      "pred": 1,
+      "score_fake": 0.987547
+    },
+    {
+      "title": "Donald Trump: Drugs a 'Very, Very Big Factor' in Charlotte Protests",
+      "label": 0,
+      "pred": 1,
+      "score_fake": 0.980327
+    },
+    {
+      "title": "Louisiana Cop Claims Murdering A 6-Year Old Child Was Self-Defense",
+      "label": 1,
+      "pred": 1,
+      "score_fake": 0.990982
+    },
+    {
+      "title": "How Can we LEAD When we Cant Even Control Our Own Cities? VIDEO Eagle Rising",
+      "label": 0,
+      "pred": 1,
+      "score_fake": 0.944205
+    },
+    {
+      "title": "Trump Wont Tell America Where His Products Are Made, So Heres A Handy Guide IMAGES",
+      "label": 0,
+      "pred": 1,
+      "score_fake": 0.919046
+    },
+    {
+      "title": "See What Happens to Her! VIDEO Eagle Rising",
+      "label": 1,
+      "pred": 1,
+      "score_fake": 0.896064
+    },
+    {
+      "title": "Clinton economy speech to focus on valuing people with disabilities",
+      "label": 0,
+      "pred": 1,
+      "score_fake": 0.886892
+    },
+    {
+      "title": "Giuliani slams Lester Holt for fact-checking like Candy Crowley",
+      "label": 1,
+      "pred": 1,
+      "score_fake": 0.792004
+    },
+    {
+      "title": "U.S. mistakenly granted citizenship to hundreds of immigrants",
+      "label": 0,
+      "pred": 1,
+      "score_fake": 0.960511
+    },
+    {
+      "title": "28-year-old man sought in Manhattan blast",
+      "label": 1,
+      "pred": 1,
+      "score_fake": 0.897624
+    },
+    {
+      "title": "Schumer transfers millions to Dems in bid for Senate takeover",
+      "label": 0,
+      "pred": 1,
+      "score_fake": 0.962968
+    },
+    {
+      "title": "Obama: 'There's a reason why we haven't had a woman President'",
+      "label": 0,
+      "pred": 1,
+      "score_fake": 0.895357
+    },
+    {
+      "title": "Rep. Peter King: We shouldn't be 'pandering' to political correctness",
+      "label": 0,
+      "pred": 1,
+      "score_fake": 0.954075
+    },
+    {
+      "title": "Trump Campaign Chair Says Racism Didn't Exist Before Obama In Viral Rant",
+      "label": 1,
+      "pred": 1,
+      "score_fake": 0.98153
+    },
+    {
+      "title": "Obamas team isnt laughing at Trump anymore",
+      "label": 0,
+      "pred": 1,
+      "score_fake": 0.928291
+    },
+    {
+      "title": "Trump: 'I was going to say something extremely rough' to Clinton",
+      "label": 0,
+      "pred": 1,
+      "score_fake": 0.966793
+    },
+    {
+      "title": "Charity: Clinton Foundation Distributed Watered-Down AIDS Drugs to Sub-Saharan Africa Eagle Rising",
+      "label": 1,
+      "pred": 1,
+      "score_fake": 0.96344
+    },
+    {
+      "title": "Public School Forced My Child To",
+      "label": 0,
+      "pred": 1,
+      "score_fake": 0.954431
+    },
+    {
+      "title": "Texas, California Separatists Attend Kremlin-Funded Conference",
+      "label": 0,
+      "pred": 1,
+      "score_fake": 0.98271
+    },
+    {
+      "title": "Meet This Week's White Texan Terrorist Trump Isn't Talking About",
+      "label": 1,
+      "pred": 1,
+      "score_fake": 0.92534
+    },
+    {
+      "title": "Hillary Clinton leads Donald Trump by 6 points, according to national poll",
+      "label": 0,
+      "pred": 1,
+      "score_fake": 0.907814
+    },
+    {
+      "title": "North Korea at UN: US faces 'tremendous consequences'",
+      "label": 1,
+      "pred": 1,
+      "score_fake": 0.928848
+    },
+    {
+      "title": "HuffPo Just Dropped The Mic On Internet Polls Saying Trump Crushed Hillary In Last Nights Debate",
+      "label": 0,
+      "pred": 1,
+      "score_fake": 0.979782
+    },
+    {
+      "title": "Paul Ryan ducks on stop-and-frisk",
+      "label": 0,
+      "pred": 1,
+      "score_fake": 0.938677
+    },
+    {
+      "title": "Famous dog killed in spot she waited a year for her owner to return to! VIDEO",
+      "label": 0,
+      "pred": 1,
+      "score_fake": 0.851894
+    },
+    {
+      "title": "Obama Claims It Will Be A Personal Insult If You Dont Vote For Hillary VIDEO",
+      "label": 0,
+      "pred": 1,
+      "score_fake": 0.990124
+    },
+    {
+      "title": "TRUTH COMES OUT! Keith Lamont Scott's Did This To His Wife Last Year and She Said \"He is a Killer\" Freedom Daily",
+      "label": 1,
+      "pred": 0,
+      "score_fake": 0.499409
+    },
+    {
+      "title": "Kerry says Syrian diplomacy at impasse after truce collapses",
+      "label": 1,
+      "pred": 1,
+      "score_fake": 0.944605
+    }
+  ]
+}

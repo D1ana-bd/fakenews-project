@@ -1,0 +1,48 @@
+{
+  "model": "bert-base-uncased",
+  "approach": "bert_titles_augmented",
+  "config": {
+    "lr": 2e-05,
+    "batch_size": 16,
+    "epochs": 5,
+    "patience": 2,
+    "aug_types": [
+      "title_only",
+      "title_50w",
+      "title_100w"
+    ]
+  },
+  "training_history": [
+    {
+      "epoch": 1,
+      "train_loss": 0.6829,
+      "val_loss": 0.7157,
+      "val_f1": 0.5333
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.6426,
+      "val_loss": 0.8054,
+      "val_f1": 0.4898
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.5648,
+      "val_loss": 0.9352,
+      "val_f1": 0.4348
+    }
+  ],
+  "best_val_loss": 0.7157,
+  "best_val_f1": 0.5333,
+  "test_metrics": {
+    "accuracy": 0.3953,
+    "precision": 0.381,
+    "recall": 0.381,
+    "f1": 0.381,
+    "auc": 0.3842
+  },
+  "comparison": {
+    "bert_cascade_f1": 0.5217,
+    "delta_f1": -0.1407
+  }
+}

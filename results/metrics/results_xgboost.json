@@ -1,0 +1,101 @@
+{
+  "ensemble_type": "XGBoost",
+  "network_features": [
+    "degree_centrality_mean",
+    "betweenness_mean",
+    "propagation_speed",
+    "modularity",
+    "n_communities"
+  ],
+  "reference_linear_auc": 0.6718,
+  "results": {
+    "abordagem_1_bert": {
+      "metrics": {
+        "cv_auc_mean": 0.8189,
+        "cv_auc_std": 0.0044,
+        "cv_f1_mean": 0.6117,
+        "cv_f1_std": 0.0091,
+        "train_accuracy": 0.794,
+        "train_precision": 0.5775,
+        "train_recall": 0.7141,
+        "train_f1": 0.6386,
+        "train_auc": 0.8459
+      },
+      "feature_importance": {
+        "degree_centrality_mean": 0.5997,
+        "modularity": 0.207,
+        "betweenness_mean": 0.0755,
+        "propagation_speed": 0.0552,
+        "n_communities": 0.0329,
+        "score_nlp_bert": 0.0297
+      },
+      "scale_pos_weight": 2.9239
+    },
+    "abordagem_2_zeroshot": {
+      "metrics": {
+        "cv_auc_mean": 0.8287,
+        "cv_auc_std": 0.0043,
+        "cv_f1_mean": 0.6222,
+        "cv_f1_std": 0.0087,
+        "train_accuracy": 0.7912,
+        "train_precision": 0.5705,
+        "train_recall": 0.7314,
+        "train_f1": 0.641,
+        "train_auc": 0.8525
+      },
+      "feature_importance": {
+        "degree_centrality_mean": 0.5535,
+        "modularity": 0.1965,
+        "betweenness_mean": 0.0961,
+        "propagation_speed": 0.0638,
+        "score_nlp_zeroshot": 0.0572,
+        "n_communities": 0.0329
+      },
+      "scale_pos_weight": 2.9239
+    },
+    "abordagem_3a_distilbert": {
+      "metrics": {
+        "cv_auc_mean": 0.817,
+        "cv_auc_std": 0.0035,
+        "cv_f1_mean": 0.6124,
+        "cv_f1_std": 0.0067,
+        "train_accuracy": 0.7953,
+        "train_precision": 0.5811,
+        "train_recall": 0.7045,
+        "train_f1": 0.6369,
+        "train_auc": 0.8437
+      },
+      "feature_importance": {
+        "degree_centrality_mean": 0.6273,
+        "modularity": 0.1906,
+        "betweenness_mean": 0.0619,
+        "propagation_speed": 0.0587,
+        "n_communities": 0.0352,
+        "score_nlp_distilbert": 0.0264
+      },
+      "scale_pos_weight": 2.9239
+    },
+    "abordagem_3b_bert_titles": {
+      "metrics": {
+        "cv_auc_mean": 0.8143,
+        "cv_auc_std": 0.0045,
+        "cv_f1_mean": 0.6129,
+        "cv_f1_std": 0.0074,
+        "train_accuracy": 0.7958,
+        "train_precision": 0.5831,
+        "train_recall": 0.6967,
+        "train_f1": 0.6349,
+        "train_auc": 0.8424
+      },
+      "feature_importance": {
+        "degree_centrality_mean": 0.6208,
+        "modularity": 0.2058,
+        "propagation_speed": 0.0613,
+        "betweenness_mean": 0.0589,
+        "n_communities": 0.0322,
+        "score_nlp_bert_titles": 0.0211
+      },
+      "scale_pos_weight": 2.9239
+    }
+  }
+}

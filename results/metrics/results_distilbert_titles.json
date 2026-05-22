@@ -1,0 +1,54 @@
+{
+  "model": "distilbert-base-uncased",
+  "approach": "distilbert_titles_augmented",
+  "config": {
+    "lr": 3e-05,
+    "batch_size": 8,
+    "epochs": 8,
+    "patience": 3,
+    "aug_types": [
+      "title_only",
+      "title_50w",
+      "title_100w"
+    ]
+  },
+  "training_history": [
+    {
+      "epoch": 1,
+      "train_loss": 0.6891,
+      "val_loss": 0.7353,
+      "val_f1": 0.2308
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.6139,
+      "val_loss": 0.8653,
+      "val_f1": 0.3889
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.5135,
+      "val_loss": 1.2059,
+      "val_f1": 0.45
+    },
+    {
+      "epoch": 4,
+      "train_loss": 0.4352,
+      "val_loss": 1.6507,
+      "val_f1": 0.3889
+    }
+  ],
+  "best_val_loss": 0.7353,
+  "best_val_f1": 0.2308,
+  "test_metrics": {
+    "accuracy": 0.4651,
+    "precision": 0.25,
+    "recall": 0.0476,
+    "f1": 0.08,
+    "auc": 0.369
+  },
+  "comparison": {
+    "bert_cascade_f1": 0.5217,
+    "delta_f1": -0.4417
+  }
+}
