@@ -12,9 +12,9 @@ em redes sociais.
 
 | Objetivo | Descrição | Estado |
 |----------|-----------|--------|
-| 1 — NLP | Classificar conteúdo como fake/real com BERT fine-tuned | ✅ Concluído |
-| 2 — Redes | Analisar padrões de propagação com NetworkX + Louvain | ✅ Concluído |
-| 3 — Integração | Combinar NLP e redes num alpha score ponderado | 🔄 Em progresso |
+| 1 — NLP | Classificar conteúdo como fake/real com BERT fine-tuned | Concluído |
+| 2 — Redes | Analisar padrões de propagação com NetworkX + Louvain |  Concluído |
+| 3 — Integração | Combinar NLP e redes num alpha score ponderado |  Em progresso |
 
 ## Resultados
 
