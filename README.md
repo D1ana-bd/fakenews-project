@@ -1,150 +1,232 @@
 # Sistema Inteligente de Deteção de Desinformação em Redes Sociais
 
-Projeto Final de Licenciatura — Ciência de Dados Aplicada | Universidade Católica Portuguesa (2026)
+**Projeto Individual — Licenciatura em Ciência de Dados Aplicada**  
+**Universidade Católica Portuguesa — Braga**  
+**Autor:** Diana Dória | **Ano letivo:** 2025/2026
+
+---
 
 ## Descrição
 
-Sistema que combina **Processamento de Linguagem Natural** (BERT) e **Análise de Redes**
-para detetar automaticamente fake news e caracterizar os seus padrões de propagação
-em redes sociais.
+Este projeto desenvolve um sistema modular de deteção de desinformação que combina **Processamento de Linguagem Natural (NLP)** com **Análise de Redes Sociais**, integrados num sistema de ensemble. O sistema foi avaliado sobre datasets públicos do FakeNewsNet e atingiu AUC=0.8287 no sistema final (XGBoost + Zero-shot).
 
-## Objetivos
+### Objetivos
+1. **Módulo NLP** — Classificação textual de notícias como fake/real usando BERT em cascata
+2. **Módulo Redes** — Identificação de padrões estruturais de propagação em grafos sintéticos Barabási-Albert
+3. **Sistema Ensemble** — Integração de ambos os módulos num classificador XGBoost
 
-| Objetivo | Descrição | Estado |
-|----------|-----------|--------|
-| 1 — NLP | Classificar conteúdo como fake/real com BERT fine-tuned | Concluído |
-| 2 — Redes | Analisar padrões de propagação com NetworkX + Louvain |  Concluído |
-| 3 — Integração | Combinar NLP e redes num alpha score ponderado |  Em progresso |
+---
 
-## Resultados
+## Resultados Principais
 
-### Objetivo 1 — NLP
-| Modelo | F1 (teste) |
-|--------|-----------|
-| Baseline TF-IDF + Logistic Regression | 0.40 |
-| **BERT Fine-tuned (cascata LIAR → FakeNewsNet)** | **0.52** |
-| Melhoria | +30.4% |
+| Modelo | Métrica | Valor |
+|--------|---------|-------|
+| Baseline TF-IDF | F1 | 0.40 |
+| BERT Cascata (LIAR → FakeNewsNet) | F1 | 0.52 (+30.4%) |
+| Zero-shot (cross-encoder/nli-deberta-v3-small) | F1 | 0.6349 |
+| Módulo Redes isolado | AUC | 0.674 |
+| Ensemble Linear (α=0.5) | AUC | 0.672 |
+| **XGBoost + Zero-shot (Final)** | **AUC** | **0.8287** |
 
-### Objetivo 2 — Redes (21.693 artigos)
-| Métrica | Fake | Real |
-|---------|------|------|
-| Degree Centrality (média) | 0.204 | 0.075 |
-| Betweenness (média) | 0.112 | 0.059 |
-| Modularidade | 0.431 | 0.576 |
-| Velocidade Propagação | 14.9 | 10.4 |
-| Super-spreaders (% fake) | **70.4%** | 25.5% baseline |
+**Feature importance XGBoost:**
+- `degree_centrality_mean`: 55.35%
+- `modularity`: 19.65%
+- `betweenness_mean`: 9.61%
+- `propagation_speed`: 6.38%
+- `score_nlp_zeroshot`: 5.72%
+- `n_communities`: 3.29%
 
-## Datasets
+---
 
-| Dataset | Tamanho | Uso |
-|---------|---------|-----|
-| FakeNewsNet (BuzzFeed + PolitiFact + GossipCop) | 422 artigos | Treino NLP + Grafos |
-| LIAR | 12.791 statements | Pré-fine-tune BERT |
-| CoAID | 4.189 artigos | Validação externa |
+## Estrutura do Repositório
+
+```
+fakenews-project/
+│
+├── data/
+│   ├── raw/
+│   │   ├── fakenewsnet/          # GossipCop CSVs (fake + real)
+│   │   └── LIAR/                 # Dataset LIAR (train/valid/test .tsv)
+│   └── processed/
+│       └── fakenewsnet/          # train.csv / val.csv / test.csv
+│
+├── src/
+│   └── FKNWS/
+│       ├── models/
+│       │   ├── train_bert.py     # Fine-tuning BERT em cascata
+│       │   └── zero_shot.py      # Classificador zero-shot
+│       ├── network/
+│       │   └── build_graphs.py   # Construção grafos BA + métricas
+│       ├── integration/
+│       │   ├── integration.py    # Ensemble linear
+│       │   └── ensemble_xgboost.py # Ensemble XGBoost
+│       └── utils/
+│           └── get_logger.py     # Logger
+│
+├── models/                       # Modelos treinados (BERT, DistilBERT)
+│
+├── results/
+│   ├── metrics/                  # JSONs e CSVs com resultados
+│   │   ├── results_nlp.json
+│   │   ├── results_baseline.json
+│   │   ├── results_xgboost.json
+│   │   ├── results_zeroshot.json
+│   │   ├── network_metrics.csv
+│   │   └── integration_comparison.csv
+│   └── figures/                  # Figuras geradas
+│
+├── tests/                        # Testes unitários
+│   ├── test_bert.py
+│   ├── test_xgboost.py
+│   └── test_zero_shot.py
+│
+├── dashboard/
+│   └── app.py                    # Dashboard Streamlit
+│
+├── notebooks/                    # Análise exploratória
+│
+├── requirements.txt
+└── README.md
+```
+
+---
 
 ## Instalação
+
+### Pré-requisitos
+- Python 3.10+
+- conda (recomendado) ou venv
+- GPU com CUDA (recomendado para treino BERT)
+
+### Configuração do ambiente
+
 ```bash
-git clone https://github.com/[username]/fakenews-project.git
+# Clonar o repositório
+git clone https://github.com/<username>/fakenews-project.git
 cd fakenews-project
 
-python -m venv venv
-source venv/bin/activate      # Linux/Mac
-venv\Scripts\activate         # Windows
+# Criar ambiente conda
+conda create -n fakenews python=3.10
+conda activate fakenews
 
+# Instalar dependências
 pip install -r requirements.txt
 ```
 
-## Como Usar
+---
 
-### Pré-processamento
-```bash
-python src/FKNWS/data_prep/data_preprocessing.py
-```
+## Utilização
 
-### Treino BERT (Objetivo 1)
+### 1. Treino do Módulo NLP (BERT em Cascata)
+
 ```bash
-# Treino completo (cascata LIAR → FakeNewsNet)
+# Fase 1 — Pré-treino no LIAR
+python src/FKNWS/models/train_bert.py --phase 1
+
+# Fase 2 — Fine-tuning no FakeNewsNet
+python src/FKNWS/models/train_bert.py --phase 2
+
+# Ambas as fases em sequência
 python src/FKNWS/models/train_bert.py --phase all
 
-# Com batch size reduzido (GPU com pouca memória)
-python src/FKNWS/models/train_bert.py --phase all --batch_size 8
-
-# Testar pipeline com subset pequeno
+# Teste rápido com 10% dos dados
 python src/FKNWS/models/train_bert.py --phase all --test_run
 ```
 
-### Análise de Redes (Objetivo 2)
+### 2. Classificação Zero-shot
+
+```bash
+python src/FKNWS/models/zero_shot.py
+```
+
+### 3. Construção dos Grafos e Métricas de Rede
+
 ```bash
 python src/FKNWS/network/build_graphs.py
 ```
 
-### Dashboard (Objetivo 3)
+Gera `results/metrics/network_metrics.csv` com 9 métricas por artigo.
+
+### 4. Ensemble Linear
+
+```bash
+# Testar todos os alphas (0.5, 0.6, 0.7, 0.8)
+python src/FKNWS/integration/integration.py
+
+# Alpha específico
+python src/FKNWS/integration/integration.py --alpha 0.5
+```
+
+### 5. Ensemble XGBoost (Sistema Final)
+
+```bash
+python src/FKNWS/integration/ensemble_xgboost.py
+```
+
+Gera `results/metrics/results_xgboost.json` com resultados por validação cruzada (5 folds).
+
+### 6. Dashboard Streamlit
+
 ```bash
 streamlit run dashboard/app.py
 ```
 
-### Testes
-```bash
-pytest tests/ -v
-```
+---
 
-## Estrutura do Projeto
-fakenews-project/
-├── data/
-│   ├── raw/                    # Dados originais (não versionados)
-│   │   ├── fakenewsnet/
-│   │   ├── LIAR/
-│   │   └── CoAID/
-│   └── processed/              # Dados processados (não versionados)
-│       └── fakenewsnet/
-│           ├── train.csv
-│           ├── val.csv
-│           └── test.csv
-├── notebooks/
-│   ├── 01_exploratory_analysis.ipynb
-│   ├── 02_baseline_model.ipynb
-│   ├── 03_nlp_results.ipynb
-│   └── 04_network_analysis.ipynb (em progresso)
-├── src/FKNWS/
-│   ├── data_prep/
-│   │   └── data_preprocessing.py
-│   ├── models/
-│   │   ├── train_bert.py
-│   │   └── README.md
-│   ├── network/
-│   │   └── build_graphs.py
-│   └── utils/
-│       └── get_logger.py
-├── models/                     # Pesos do modelo (não versionados)
-│   ├── bert_liar/
-│   └── bert_fake_news/
-├── results/
-│   ├── figures/                # Gráficos gerados
-│   └── metrics/                # Métricas em JSON
-├── tests/
-│   ├── test_data_preprocessing.py
-│   └── test_train_bert.py
-├── .gitignore
-├── requirements.txt
-└── README.md
+## Datasets
 
-## Arquitetura do Sistema
-FakeNewsNet ──→ Baseline TF-IDF + LR  ──→ F1 = 0.40
-│
-└──→ BERT Fine-tune (Fase 2) ──→ F1 = 0.52
-↑
-LIAR ────→ BERT Pré-fine-tune (Fase 1)
-GossipCop ──→ Grafos NetworkX ──→ Métricas de Rede
-│
-┌─────────┘
-↓
-Alpha Score = α × NLP + (1-α) × Rede
-│
-↓
-Dashboard Streamlit (?)
+| Dataset | Utilização | Exemplos |
+|---------|-----------|----------|
+| **LIAR** | Pré-treino NLP (Fase 1) | 10.240 |
+| **FakeNewsNet BuzzFeed/PolitiFact** | Fine-tuning NLP (Fase 2) | 422 (336 treino / 43 val / 43 teste) | 
+| **GossipCop** | Análise de redes + Ensemble | 21.695 artigos |
+| **CoAID** | Validação exploratória | — | 
 
-## Autora
+> **Nota:** Os datasets não estão incluídos no repositório. O FakeNewsNet está disponível no [Kaggle](https://www.kaggle.com/datasets/mdepak/fakenewsnet). O LIAR está disponivel no [Kaggle](https://www.kaggle.com/datasets/doanquanvietnamca/liar-dataset).
 
-**Diana Dória**
-Licenciatura em Ciência de Dados Aplicada
-Universidade Católica Portuguesa — Braga, 2026
+---
+
+## Limitações Conhecidas
+
+- **Grafos sintéticos:** Os grafos de propagação são gerados com o modelo Barabási-Albert calibrado pelo número de tweets, não por estrutura real de retweets (não disponível no GossipCop CSV).
+- **Mismatch treino/inferência NLP:** O BERT foi treinado com título + texto completo mas a inferência no ensemble opera apenas sobre títulos (GossipCop).
+- **Volume de dados NLP reduzido:** 336 exemplos de treino limitam a generalização do classificador supervisionado.
+- **Língua:** Todos os datasets são em inglês.
+
+---
+
+## Hiperparâmetros BERT
+
+| Parâmetro | Valor |
+|-----------|-------|
+| Modelo base | `bert-base-uncased` |
+| Learning rate | 2e-5 |
+| Batch size | 16 |
+| Épocas | 3 |
+| Early stopping (patience) | 2 |
+| Optimizer | AdamW |
+| LR Scheduler | Linear warmup (10% steps) |
+| Max sequence length | 512 tokens |
+
+---
+
+## Stack Tecnológico
+
+- **ML/NLP:** PyTorch, HuggingFace Transformers, Scikit-learn
+- **Redes:** NetworkX, python-louvain
+- **Ensemble:** XGBoost
+- **Visualização:** Matplotlib, Seaborn, Pyvis
+- **Dashboard:** Streamlit
+- **Versão Python:** 3.10
+- **GPU:** NVIDIA (CUDA) — recomendado para treino BERT
+
+---
+
+## Referências
+
+- Devlin et al. (2019). BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding.
+- Shu et al. (2020). FakeNewsNet: A Data Repository with News Content, Social Context and Spatio-temporal Information.
+- Wang (2017). "Liar, Liar Pants on Fire": A New Benchmark Dataset for Fake News Detection.
+- Vosoughi et al. (2018). The spread of true and false news online. Science.
+- Barabási & Albert (1999). Emergence of scaling in random networks. Science.
+
